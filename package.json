@@ -1,0 +1,36 @@
+{
+  "name": "ain-cloud",
+  "private": true,
+  "description": "AIN Cloud — облачное хранилище 4K-медиа для ain.kz",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "env:init": "node scripts/env-init.mjs",
+    "infra:up": "docker compose up -d postgres redis minio minio-init clamav mailpit",
+    "infra:down": "docker compose down",
+    "db:generate": "npm run generate -w @ain/db",
+    "db:migrate": "npm run migrate:dev -w @ain/db",
+    "db:deploy": "npm run migrate:deploy -w @ain/db",
+    "db:seed": "npm run seed -w @ain/db",
+    "dev:api": "npm run start:dev -w @ain/api",
+    "dev:web": "npm run dev -w @ain/web",
+    "worker:up": "docker compose up -d --build worker",
+    "build": "npm run build -w @ain/api && npm run build -w @ain/worker && npm run build -w @ain/web",
+    "test:e2e": "node --test --test-concurrency=1 --test-reporter=spec \"tests/e2e/*.test.mjs\"",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "demo:seed": "node scripts/seed-demo.mjs"
+  },
+  "allowScripts": {
+    "argon2@0.45.1": true,
+    "@prisma/client@6.19.3": true,
+    "prisma@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "unrs-resolver@1.12.2": true,
+    "msgpackr-extract@3.0.4": true
+  }
+}

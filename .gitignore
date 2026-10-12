@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+
+# Служебные материалы заказчика и тестовые файлы не попадают в репозиторий (ТЗ §19)
+*.zip
+*.pdf
+tests/fixtures/generated/
+tests/e2e/.artifacts/
+.codebase-memory/

@@ -1,0 +1,393 @@
+@import "tailwindcss";
+
+/*
+ * Матовое стекло: за интерфейсом — медленно плывущие размытые пятна фирменных цветов и лёгкое зерно,
+ * панели и карточки — полупрозрачные с размытием фона. Тёмная тема по умолчанию (ТЗ §12).
+ */
+@custom-variant light (&:where(.light, .light *));
+
+:root {
+  color-scheme: dark;
+  --bg: #060a10;
+  --bg-top: #0b1422;
+  --bg-elevated: rgba(12, 18, 28, 0.62);
+  --surface: rgba(20, 28, 40, 0.58);
+  --surface-2: rgba(255, 255, 255, 0.055);
+  --surface-3: rgba(255, 255, 255, 0.1);
+  --border: rgba(255, 255, 255, 0.085);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --fg: #e8eef6;
+  --fg-muted: #9fadbf;
+  --fg-subtle: #8494aa;
+  --accent: #7cc4ff;
+  --accent-strong: #4ea9f5;
+  --accent-fg: #06121f;
+  --accent-soft: rgba(124, 196, 255, 0.15);
+  --success: #2ef2a3;
+  --success-soft: rgba(46, 242, 163, 0.14);
+  --warning: #f5c451;
+  --warning-soft: rgba(245, 196, 81, 0.14);
+  --danger: #ff7a7a;
+  --danger-soft: rgba(255, 122, 122, 0.14);
+  --overlay: rgba(3, 6, 10, 0.55);
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  /* Стекло */
+  --glass-bg: rgba(15, 22, 33, 0.52);
+  --glass-bg-strong: rgba(13, 19, 29, 0.86);
+  --glass-card: rgba(22, 31, 45, 0.42);
+  --glass-card-hover: rgba(30, 41, 58, 0.5);
+  --glass-highlight: rgba(255, 255, 255, 0.07);
+  --spot: rgba(124, 196, 255, 0.13);
+  /* Пятна фона */
+  --blob-1: #1667c7;
+  --blob-1-o: 0.42;
+  --blob-2: #1fbf88;
+  --blob-2-o: 0.16;
+  --blob-3: #5b4fd6;
+  --blob-3-o: 0.22;
+  --grain-o: 0.06;
+  /* Метки графиков: проверены валидатором палитры на поверхности #131a23 */
+  --chart-1: #3d97e0;
+  --chart-grid: rgba(255, 255, 255, 0.09);
+}
+
+.light {
+  color-scheme: light;
+  --bg: #e8eef7;
+  --bg-top: #f3f6fb;
+  --bg-elevated: rgba(255, 255, 255, 0.62);
+  --surface: rgba(255, 255, 255, 0.66);
+  --surface-2: rgba(15, 23, 42, 0.045);
+  --surface-3: rgba(15, 23, 42, 0.085);
+  --border: rgba(15, 23, 42, 0.09);
+  --border-strong: rgba(15, 23, 42, 0.17);
+  --fg: #0e1621;
+  --fg-muted: #46546a;
+  --fg-subtle: #5d6b80;
+  --accent: #1667c7;
+  --accent-strong: #0f55a8;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(22, 103, 199, 0.11);
+  --success: #0b8a5a;
+  --success-soft: rgba(11, 138, 90, 0.12);
+  --warning: #8a5a00;
+  --warning-soft: rgba(196, 140, 20, 0.14);
+  --danger: #c22c2c;
+  --danger-soft: rgba(194, 44, 44, 0.1);
+  --overlay: rgba(15, 22, 33, 0.3);
+  --shadow: 0 18px 50px rgba(30, 45, 70, 0.16);
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-strong: rgba(255, 255, 255, 0.88);
+  --glass-card: rgba(255, 255, 255, 0.52);
+  --glass-card-hover: rgba(255, 255, 255, 0.7);
+  --glass-highlight: rgba(255, 255, 255, 0.75);
+  --spot: rgba(22, 103, 199, 0.09);
+  --blob-1: #7cc4ff;
+  --blob-1-o: 0.55;
+  --blob-2: #6fe8bd;
+  --blob-2-o: 0.35;
+  --blob-3: #b9a8ff;
+  --blob-3-o: 0.4;
+  --grain-o: 0.05;
+  --chart-1: #1667c7;
+  --chart-grid: rgba(15, 23, 42, 0.1);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-overlay: var(--overlay);
+  --shadow-pop: var(--shadow);
+  --color-chart-1: var(--chart-1);
+  --color-chart-grid: var(--chart-grid);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  /* Прозрачный — под ним живой фон .app-backdrop */
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---------- Живой фон ---------- */
+
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% -10%, var(--bg-top), var(--bg) 60%);
+}
+.app-backdrop .blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  will-change: transform;
+  animation: drift 46s ease-in-out infinite alternate;
+}
+.app-backdrop .b1 {
+  width: 58vw;
+  height: 58vw;
+  left: -14vw;
+  top: -22vw;
+  background: var(--blob-1);
+  opacity: var(--blob-1-o);
+}
+.app-backdrop .b2 {
+  width: 44vw;
+  height: 44vw;
+  right: -12vw;
+  top: 18vh;
+  background: var(--blob-2);
+  opacity: var(--blob-2-o);
+  animation-duration: 58s;
+  animation-delay: -14s;
+}
+.app-backdrop .b3 {
+  width: 52vw;
+  height: 52vw;
+  left: 22vw;
+  bottom: -30vw;
+  background: var(--blob-3);
+  opacity: var(--blob-3-o);
+  animation-duration: 66s;
+  animation-delay: -30s;
+}
+/* Матовое зерно поверх пятен */
+.app-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: var(--grain-o);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+@keyframes drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(5vw, 4vh, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-4vw, 6vh, 0) scale(0.94);
+  }
+}
+
+/* ---------- Стекло ---------- */
+
+@layer components {
+
+  /* Панели: сайдбар, шапка, сведения о файле, настройки */
+  .glass {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    backdrop-filter: blur(22px) saturate(160%);
+    border: 1px solid var(--border);
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
+  }
+  /* Всплывающее: меню, модальные окна, уведомления — плотнее, чтобы текст читался поверх любого содержимого */
+  .glass-strong {
+    background: var(--glass-bg-strong);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
+    backdrop-filter: blur(28px) saturate(170%);
+    border: 1px solid var(--border-strong);
+    box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow);
+  }
+  /* Карточки в сетках: полупрозрачные без размытия (их много — бережём производительность) */
+  .glass-card {
+    background: var(--glass-card);
+    border: 1px solid var(--border);
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
+    transition:
+      transform 0.2s ease,
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+  .glass-card:hover {
+    background: var(--glass-card-hover);
+    border-color: var(--border-strong);
+    box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .glass-card.lift:hover {
+      transform: translateY(-2px);
+    }
+  }
+
+  /* Подсветка под курсором: координаты --mx/--my ставит общий обработчик (providers.tsx) */
+  .spotlight {
+    position: relative;
+    isolation: isolate;
+  }
+  .spotlight::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(280px circle at var(--mx, 50%) var(--my, 50%), var(--spot), transparent 65%);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+  }
+  .spotlight:hover::before {
+    opacity: 1;
+  }
+
+  /* Градиентная обводка для главных акцентов */
+  .glow-ring {
+    position: relative;
+  }
+  .glow-ring::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(124, 196, 255, 0.7), rgba(46, 242, 163, 0.45), transparent 60%);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .text-gradient {
+    background: linear-gradient(120deg, var(--fg) 20%, var(--accent) 60%, var(--success));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  kbd {
+    display: inline-flex;
+    min-width: 1.4rem;
+    height: 1.4rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.35rem;
+    border-radius: 0.35rem;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+
+}
+
+/* ---------- Общее ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Видимый фокус для управления с клавиатуры (WCAG 2.1) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.sr-only-focusable:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-pop {
+  animation: pop-in 160ms ease-out;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fade-up {
+  animation: fade-up 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+}

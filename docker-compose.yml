@@ -1,0 +1,187 @@
+# AIN Cloud — локальная среда (ТЗ §11: Docker Compose, документированное подключение хранилища).
+#
+#   npm run env:init          # создать .env со случайными секретами
+#   docker compose up -d      # инфраструктура + воркер обработки
+#   docker compose --profile app up -d --build   # плюс API и веб-интерфейс в контейнерах
+#
+# Порты опубликованы только на 127.0.0.1 и не пересекаются со стандартными (5432/6379/9000),
+# чтобы не конфликтовать с другими проектами на машине.
+name: ain-cloud
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  REDIS_URL: redis://redis:6379
+  S3_ENDPOINT: http://minio:9000
+  S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT}
+  S3_REGION: ${S3_REGION}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+  S3_SECRET_KEY: ${S3_SECRET_KEY}
+  S3_BUCKET_ORIGINALS: ${S3_BUCKET_ORIGINALS}
+  S3_BUCKET_DERIVED: ${S3_BUCKET_DERIVED}
+  CLAMAV_HOST: clamav
+  CLAMAV_PORT: 3310
+  AV_MAX_SCAN_MB: ${AV_MAX_SCAN_MB}
+  UPLOAD_SESSION_TTL_DAYS: ${UPLOAD_SESSION_TTL_DAYS}
+  TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS}
+
+services:
+  postgres:
+    # Локально кэшированный образ PostgreSQL 16 (PostGIS не используется; подойдёт и postgres:16)
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set in .env}
+    ports: ["127.0.0.1:${POSTGRES_PORT:-55432}:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    networks: [default, backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports: ["127.0.0.1:${REDIS_PORT:-56379}:6379"]
+    volumes: [redisdata:/data]
+    networks: [default, backend]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  minio:
+    image: quay.io/minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set in .env}
+      # Шифрование хранимых объектов (SSE, AES-256) — ТЗ §10.1
+      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:?set in .env}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${APP_URL}
+    ports:
+      - "127.0.0.1:${MINIO_PORT:-59000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-59001}:9001"
+    volumes: [miniodata:/data]
+    networks: [default, backend]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      retries: 20
+
+  # Создаёт приватные бакеты и включает шифрование по умолчанию. Публичного доступа нет (ТЗ §10).
+  minio-init:
+    image: quay.io/minio/mc:latest
+    depends_on:
+      minio: { condition: service_healthy }
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      ORIGINALS: ${S3_BUCKET_ORIGINALS}
+      DERIVED: ${S3_BUCKET_DERIVED}
+    entrypoint: ["/bin/sh", "/init/minio-init.sh"]
+    volumes: ["./infra/minio:/init:ro"]
+    networks: [backend]
+    restart: "no"
+
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    environment:
+      # Технический предел движка ClamAV — 2 ГБ; больше проверить нельзя (см. AV_MAX_SCAN_MB)
+      CLAMD_CONF_StreamMaxLength: 2000M
+      CLAMD_CONF_MaxScanSize: 2000M
+      CLAMD_CONF_MaxFileSize: 2000M
+    volumes: [clamdb:/var/lib/clamav]
+    networks: [default, backend]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-58025}:8025"
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-51025}:1025"
+    networks: [default, backend]
+
+  # Медиаобработчик: изолированный контейнер без доступа в интернет,
+  # с лимитами CPU/памяти, только для чтения, без привилегий (ТЗ §10.1).
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+    environment:
+      <<: *app-env
+      WORK_DIR: /work
+      WORKER_CONCURRENCY: "1"
+    networks: [backend]
+    read_only: true
+    tmpfs: ["/tmp:size=512m"]
+    volumes: [workdir:/work]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits:
+          cpus: "6"
+          memory: 4g
+
+  api:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+    environment:
+      <<: *app-env
+      APP_URL: ${APP_URL}
+      API_PORT: "4000"
+      COOKIE_SECURE: ${COOKIE_SECURE}
+      APP_SECRET: ${APP_SECRET:?set in .env}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      MAIL_FROM: ${MAIL_FROM}
+      UPLOAD_PART_SIZE_MB: ${UPLOAD_PART_SIZE_MB}
+      UPLOAD_PARALLEL_PARTS: ${UPLOAD_PARALLEL_PARTS}
+      SIGNED_URL_TTL_SEC: ${SIGNED_URL_TTL_SEC}
+    ports: ["127.0.0.1:${API_PORT:-4000}:4000"]
+    networks: [default, backend]
+
+  web:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on: [api]
+    environment:
+      API_INTERNAL_URL: http://api:4000
+    ports: ["127.0.0.1:3000:3000"]
+    networks: [default]
+
+networks:
+  default: {}
+  # Внутренняя сеть без выхода в интернет: в ней живёт воркер обработки
+  backend:
+    internal: true
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  miniodata: {}
+  clamdb: {}
+  workdir: {}

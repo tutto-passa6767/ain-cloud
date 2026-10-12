@@ -1,0 +1,440 @@
+// AIN Cloud — схема базы данных (ТЗ §11: только метаданные, бинарные файлы в БД не хранятся).
+
+generator client {
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  // pg_trgm — быстрый поиск подстроки по названиям (ТЗ §8: ответ до 1 сек)
+  extensions = [pg_trgm]
+}
+
+// ---------- Пользователи, тарифы, сессии ----------
+
+enum UserRole {
+  USER
+  MODERATOR
+  SUPPORT
+  ACCOUNTANT
+  ADMIN
+}
+
+enum PlanCode {
+  FREE
+  PRO
+  PRO_MAX
+  BUSINESS
+}
+
+enum Theme {
+  DARK
+  LIGHT
+}
+
+/// Режим маскота (ТЗ §13.4): включён, свёрнут в кнопку «Позвать Барыса», выключен
+enum MascotMode {
+  ON
+  COLLAPSED
+  OFF
+}
+
+model Plan {
+  code           PlanCode @id
+  name           String
+  quotaBytes     BigInt
+  maxFileBytes   BigInt
+  /// Максимальная высота кадра версий для просмотра: 1080 для Free, 2160 для Pro+
+  maxVideoHeight Int
+  /// Приоритет в очереди обработки (BullMQ: 1 — наивысший)
+  queuePriority  Int
+  /// Флаги возможностей: passwordLinks, uploadLinks, comments, versions, teams
+  features       Json     @default("{}")
+  sortOrder      Int      @default(0)
+  users          User[]
+}
+
+model User {
+  id              String     @id @default(uuid()) @db.Uuid
+  email           String     @unique
+  emailVerifiedAt DateTime?
+  passwordHash    String
+  name            String
+  role            UserRole   @default(USER)
+  planCode        PlanCode   @default(FREE)
+  plan            Plan       @relation(fields: [planCode], references: [code])
+  /// Занято оригиналами (включая корзину до окончательного удаления)
+  usedBytes       BigInt     @default(0)
+  /// Зарезервировано под идущие загрузки (ТЗ §6.4)
+  reservedBytes   BigInt     @default(0)
+  quotaOverride   BigInt?
+  locale          String     @default("ru")
+  theme           Theme      @default(DARK)
+  mascotMode      MascotMode @default(ON)
+  onboardedAt     DateTime?
+  pdConsentAt     DateTime
+  /// Секрет TOTP (зашифрован AES-256-GCM ключом приложения); 2FA обязательна для сотрудников (ТЗ §4.1)
+  totpSecret      String?
+  totpEnabledAt   DateTime?
+  failedLogins    Int        @default(0)
+  lockedUntil     DateTime?
+  blockedAt       DateTime?
+  blockedReason   String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  sessions   Session[]
+  emailCodes EmailCode[]
+  folders    Folder[]
+  assets     Asset[]     @relation("AssetOwner")
+  uploads    UploadSession[]
+  tags       Tag[]
+  shares     ShareLink[]
+}
+
+model Session {
+  /// SHA-256 от токена из cookie; сам токен в БД не хранится
+  id         String    @id
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  ip         String?
+  userAgent  String?
+
+  @@index([userId])
+}
+
+enum EmailCodePurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+model EmailCode {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   EmailCodePurpose
+  codeHash  String
+  attempts  Int              @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, purpose])
+}
+
+// ---------- Файловая структура ----------
+
+model Folder {
+  id          String    @id @default(uuid()) @db.Uuid
+  ownerId     String    @db.Uuid
+  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  parentId    String?   @db.Uuid
+  parent      Folder?   @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Folder[]  @relation("FolderTree")
+  name        String
+  color       String?
+  starred     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  /// Корзина: момент удаления и корень удалённой ветки (папка или файл, удалённый пользователем)
+  deletedAt   DateTime?
+  trashRootId String?   @db.Uuid
+  assets      Asset[]
+  shares      ShareLink[]
+
+  @@index([ownerId, parentId])
+  @@index([trashRootId])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Folder_name_trgm_idx")
+}
+
+enum AssetKind {
+  VIDEO
+  PHOTO
+  RAW
+  AUDIO
+  DOCUMENT
+  ARCHIVE
+  OTHER
+}
+
+/// Состояния материала (ТЗ §7.1). «Загружено» не означает «проверено и готово».
+enum AssetState {
+  /// Передаётся
+  UPLOADING
+  /// Получен: размер сверен, контрольная сумма в очереди на сверку
+  RECEIVED
+  /// Контрольная сумма не совпала — оригинал повреждён при передаче
+  CORRUPTED
+  /// Проверка безопасности
+  SCANNING
+  /// Проверен
+  VERIFIED
+  /// Ограничен: проверка не выполнена (ошибка, лимит размера, антивирус недоступен)
+  RESTRICTED
+  /// Заблокирован: угроза, несоответствие типа или решение модератора
+  BLOCKED
+}
+
+/// Создание превью и версий (ТЗ §7.1, шаги 5–6)
+enum ProcessingState {
+  NONE
+  PENDING
+  RUNNING
+  READY
+  FAILED
+  /// Формат хранится, но просмотр на сайте не поддерживается — это не потеря оригинала
+  UNSUPPORTED
+}
+
+model Asset {
+  id                 String          @id @default(uuid()) @db.Uuid
+  ownerId            String          @db.Uuid
+  owner              User            @relation("AssetOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  uploadedById       String          @db.Uuid
+  folderId           String?         @db.Uuid
+  folder             Folder?         @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  /// Отображаемое название; переименование не меняет содержимое и ключ объекта (ТЗ §2)
+  name               String
+  /// Имя файла при загрузке — хранится отдельно от технического ключа (ТЗ §6.4)
+  originalName       String
+  extension          String
+  kind               AssetKind
+  /// Тип по содержимому (а не по имени и Content-Type) — ТЗ §10.1
+  detectedMime       String?
+  declaredMime       String?
+  size               BigInt
+  /// Технический ключ объекта в хранилище (случайный UUID)
+  objectKey          String          @unique
+  /// SHA-256, посчитанный браузером при загрузке
+  sha256Client       String?
+  /// SHA-256, пересчитанный сервером по объекту в хранилище
+  sha256             String?
+  state              AssetState      @default(UPLOADING)
+  stateReason        String?
+  stateChangedAt     DateTime        @default(now())
+  scanEngine         String?
+  processing         ProcessingState @default(NONE)
+  processingProgress Int             @default(0)
+  processingError    String?
+  processingAttempts Int             @default(0)
+  /// Технические параметры: кодек, fps, битрейт, HDR, аудиодорожки и т. п.
+  meta               Json?
+  /// EXIF без чувствительных полей
+  exif               Json?
+  /// Чувствительные данные (GPS, серийные номера) — видны только владельцу (ТЗ §8)
+  sensitiveMeta      Json?
+  width              Int?
+  height             Int?
+  durationSec        Float?
+  /// Дата съёмки хранится отдельно и не подменяется датой загрузки (ТЗ §8)
+  takenAt            DateTime?
+  description        String          @default("")
+  starred            Boolean         @default(false)
+  color              String?
+  lastOpenedAt       DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  deletedAt          DateTime?
+  trashRootId        String?         @db.Uuid
+
+  derivatives Derivative[]
+  tags        AssetTag[]
+  upload      UploadSession?
+  shares      ShareLink[]
+  reports     Report[]
+
+  @@index([ownerId, folderId])
+  @@index([ownerId, createdAt])
+  @@index([ownerId, lastOpenedAt])
+  @@index([trashRootId])
+  @@index([state])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Asset_name_trgm_idx")
+}
+
+enum DerivativeKind {
+  /// Миниатюра 256 px
+  THUMB_SM
+  /// Миниатюра 1024 px
+  THUMB_LG
+  /// Версия фото для просмотра 2560 px
+  PREVIEW
+  /// Спрайт кадров для перемотки
+  SPRITE
+  /// Короткое анимированное превью
+  ANIMATED
+  /// Версия видео для воспроизведения (HLS)
+  HLS
+}
+
+/// Производные версии: можно удалить и пересоздать, оригинал не трогается (ТЗ §2)
+model Derivative {
+  id        String         @id @default(uuid()) @db.Uuid
+  assetId   String         @db.Uuid
+  asset     Asset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  kind      DerivativeKind
+  /// Ключ объекта или префикс (для HLS) в бакете производных версий
+  objectKey String
+  mime      String?
+  width     Int?
+  height    Int?
+  size      BigInt?
+  meta      Json?
+  createdAt DateTime       @default(now())
+
+  @@unique([assetId, kind])
+}
+
+model Tag {
+  id      String     @id @default(uuid()) @db.Uuid
+  ownerId String     @db.Uuid
+  owner   User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name    String
+  assets  AssetTag[]
+
+  @@unique([ownerId, name])
+}
+
+model AssetTag {
+  assetId String @db.Uuid
+  asset   Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  tagId   String @db.Uuid
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([assetId, tagId])
+  @@index([tagId])
+}
+
+// ---------- Загрузка (ТЗ §6) ----------
+
+enum UploadStatus {
+  ACTIVE
+  COMPLETING
+  COMPLETED
+  ABORTED
+  EXPIRED
+  FAILED
+}
+
+model UploadSession {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @db.Uuid
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetId         String       @unique @db.Uuid
+  asset           Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  folderId        String?      @db.Uuid
+  s3UploadId      String
+  objectKey       String
+  fileName        String
+  size            BigInt
+  /// Дата изменения файла в браузере (мс) — для сверки при возобновлении (ТЗ §6.3)
+  lastModified    BigInt
+  /// SHA-256 первой части — для сверки при возобновлении
+  firstPartSha256 String
+  partSize        Int
+  partsCount      Int
+  /// Объём, зарезервированный в квоте на время загрузки
+  reservedBytes   BigInt
+  status          UploadStatus @default(ACTIVE)
+  error           String?
+  expiresAt       DateTime
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  completedAt     DateTime?
+
+  @@index([userId, status])
+  @@index([status, expiresAt])
+}
+
+// ---------- Журнал действий (ТЗ §10.3) ----------
+
+model AuditEvent {
+  id         BigInt   @id @default(autoincrement())
+  at         DateTime @default(now())
+  actorId    String?  @db.Uuid
+  action     String
+  targetType String?
+  targetId   String?
+  ip         String?
+  userAgent  String?
+  meta       Json?
+
+  @@index([actorId, at])
+  @@index([action, at])
+  @@index([targetType, targetId])
+}
+
+// ---------- Настройки, задаваемые администратором ----------
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+// ---------- Публичные ссылки и модерация (ТЗ §9, §10.2) ----------
+
+/**
+ * Ссылка приложения — не постоянный адрес объекта в хранилище: после проверки условий
+ * выдаётся краткоживущий подписанный доступ. Уже выданный адрес действует до своего истечения.
+ */
+model ShareLink {
+  id               String    @id @default(uuid()) @db.Uuid
+  /// Случайный токен из адреса /s/:token
+  token            String    @unique
+  ownerId          String    @db.Uuid
+  owner            User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  assetId          String?   @db.Uuid
+  asset            Asset?    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  folderId         String?   @db.Uuid
+  folder           Folder?   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  /// Pro: пароль (Argon2id), срок действия, лимит выдачи скачиваний, «только просмотр»
+  passwordHash     String?
+  expiresAt        DateTime?
+  maxDownloads     Int?
+  viewOnly         Boolean   @default(false)
+  /// Статистика: открытия и выданные ссылки на скачивание (выдача ≠ подтверждённое скачивание)
+  opens            Int       @default(0)
+  downloadsIssued  Int       @default(0)
+  lastOpenedAt     DateTime?
+  revokedAt        DateTime?
+  blockedAt        DateTime?
+  blockedReason    String?
+  createdAt        DateTime  @default(now())
+  reports          Report[]
+
+  @@index([ownerId])
+  @@index([assetId])
+  @@index([folderId])
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  REJECTED
+}
+
+/// Жалоба с публичной ссылки — попадает в очередь модераторов
+model Report {
+  id           String       @id @default(uuid()) @db.Uuid
+  shareId      String?      @db.Uuid
+  share        ShareLink?   @relation(fields: [shareId], references: [id], onDelete: SetNull)
+  assetId      String?      @db.Uuid
+  asset        Asset?       @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  reason       String
+  text         String       @default("")
+  reporterIp   String?
+  status       ReportStatus @default(OPEN)
+  resolvedById String?      @db.Uuid
+  resolution   String?
+  createdAt    DateTime     @default(now())
+  resolvedAt   DateTime?
+
+  @@index([status, createdAt])
+}

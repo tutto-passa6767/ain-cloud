@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/.next
+**/*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.zip
+*.pdf
+.git
+.codebase-memory
+tests/fixtures/generated
+tests/e2e/.artifacts
+mascot/*.glb
