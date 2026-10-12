@@ -65,6 +65,16 @@ npm run dev:web                  # интерфейс на http://localhost:3000
 
 ClamAV при первом старте скачивает базы несколько минут — до этого загруженные файлы получают «Ограничен» с причиной «антивирус недоступен» (так и требует ТЗ §10.1). Перепроверить их можно в админ-панели.
 
+## Веб-интерфейс на Vercel
+
+Импортируйте `tutto-passa6767/ain-cloud` в [Vercel](https://vercel.com/new) и выберите **Root Directory: `apps/web`**, **Framework: Next.js**, **Node.js: 24.x**. Оставьте включённым **Include source files outside of the Root Directory**. Установка зависимостей и сборка заданы в `apps/web/vercel.json`; Output Directory оставьте по умолчанию. Vercel собирает только веб-интерфейс, используя корневой `package-lock.json` монорепозитория.
+
+Без отдельного API доступны главная и публичные страницы. Регистрация, медиатека, загрузка и обработка файлов требуют NestJS API, PostgreSQL, Redis, S3-хранилища, почты и воркера на отдельном сервере.
+
+После запуска API добавьте в Vercel переменную `API_INTERNAL_URL=https://api.example.com` (без `/api`) и выполните Redeploy: адрес прокси фиксируется при сборке. На сервере API задайте `APP_URL=https://<имя-проекта>.vercel.app`, `COOKIE_SECURE=true` и публичный HTTPS-адрес `S3_PUBLIC_ENDPOINT`; разрешите этот адрес приложения в CORS хранилища. Корневой `.env` с локальными секретами в Vercel не импортируется.
+
+[Бесплатный тариф Hobby](https://vercel.com/docs/plans/hobby) предназначен для личного некоммерческого использования. Настройки монорепозитория описаны в [документации Vercel](https://vercel.com/docs/monorepos).
+
 ## Тесты
 
 ```bash

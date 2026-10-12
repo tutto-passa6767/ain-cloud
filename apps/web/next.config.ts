@@ -1,7 +1,8 @@
 import type { NextConfig } from 'next';
 
 // Запросы /api/* проксируются на NestJS — браузер работает с одним доменом, cookie сессии httpOnly
-const API = process.env.API_INTERNAL_URL ?? 'http://localhost:4000';
+// На Vercel API подключается отдельно; localhost доступен только при локальном запуске.
+const API = process.env.API_INTERNAL_URL || (process.env.VERCEL ? undefined : 'http://localhost:4000');
 
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -25,7 +26,7 @@ const nextConfig: NextConfig = {
     },
   },
   async rewrites() {
-    return [{ source: '/api/:path*', destination: `${API}/api/:path*` }];
+    return API ? [{ source: '/api/:path*', destination: `${API.replace(/\/$/, '')}/api/:path*` }] : [];
   },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
