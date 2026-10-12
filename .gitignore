@@ -18,3 +18,5 @@ Thumbs.db
 tests/fixtures/generated/
 tests/e2e/.artifacts/
 .codebase-memory/
+.playwright-mcp/
+output/playwright/

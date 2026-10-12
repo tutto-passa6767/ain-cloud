@@ -9,6 +9,8 @@
 *.pdf
 .git
 .codebase-memory
+.playwright-mcp
+output/playwright
 tests/fixtures/generated
 tests/e2e/.artifacts
 mascot/*.glb
