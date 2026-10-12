@@ -149,7 +149,7 @@ export function AuthCard({ title, children, footer }: { title: string; children:
             {children}
           </div>
           {footer && <div className="mt-4 text-center text-sm text-muted">{footer}</div>}
-          <p className="mt-6 text-center text-xs text-subtle">{t('auth.dataInKz')}</p>
+          <p className="mt-6 text-center text-xs text-subtle">{t('auth.secureConnection')}</p>
         </div>
       </main>
     </div>

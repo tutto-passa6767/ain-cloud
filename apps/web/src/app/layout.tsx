@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: { default: 'AIN Cloud — облако для 4K-видео и RAW-фото', template: '%s · AIN Cloud' },
-  description: 'Храните, смотрите и передавайте 4K-видео и RAW-фото. Оригиналы хранятся без изменений в Казахстане.',
+  description: 'Храните, смотрите и передавайте 4K-видео и RAW-фото. Оригиналы хранятся без изменений.',
   applicationName: 'AIN Cloud',
   manifest: '/manifest.webmanifest',
   icons: { icon: '/icon.svg', apple: '/icon.svg' },
