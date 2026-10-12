@@ -1,0 +1,65 @@
+# API для интерфейса на Vercel. Все создаваемые ресурсы используют Free.
+# До развёртывания нужны внешние PostgreSQL, S3 и SMTP (порт 2525).
+# Воркер обработки медиа и ClamAV развёртываются отдельно.
+services:
+  - type: web
+    name: ain-cloud-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: main
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: "10000"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: APP_SECRET
+        generateValue: true
+      - key: APP_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: ain-cloud-queue
+          type: keyvalue
+          property: connectionString
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_PUBLIC_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_BUCKET_ORIGINALS
+        value: ain-originals
+      - key: S3_BUCKET_DERIVED
+        value: ain-derived
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "2525"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+
+  - type: keyvalue
+    name: ain-cloud-queue
+    plan: free
+    region: frankfurt
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
