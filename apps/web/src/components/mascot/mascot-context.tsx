@@ -1,35 +1,60 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useI18n, type TKey } from '@/i18n';
 import type { MascotMode } from '@/lib/types';
 import { useSession } from '../providers';
-import type { BarysPose } from './barys-model';
+import type { CloudPose } from './cloud-model';
 
-export type Mood = BarysPose;
+export type Mood = CloudPose;
+
+/** Приоритет состояний (ТЗ маскота §6): Злой > Растерян > Радость > Думает > Привет > Ожидание > Спит */
+const PRIORITY: Mood[] = ['angry', 'confused', 'happy', 'think', 'hello', 'idle', 'sleep'];
+const rank = (m: Mood) => PRIORITY.indexOf(m);
+
+export interface Bubble {
+  text: string;
+  /** Важная реплика (ошибка): не исчезает сама, пока ситуация не решится */
+  urgent: boolean;
+  source?: string;
+}
 
 interface MascotApi {
   mode: MascotMode;
-  setMode: (m: MascotMode) => void;
   mood: Mood;
-  /** Подставка видна только в онбординге */
-  pedestal: boolean;
-  bubble: string | null;
+  /** В онбординге Облачко крупнее и стоит рядом с основным содержимым (ТЗ маскота §6) */
+  large: boolean;
+  bubble: Bubble | null;
   dismissBubble: () => void;
-  setPageMood: (id: string, mood: Mood | null, hint?: TKey) => void;
-  react: (mood: Mood, ms?: number, text?: string) => void;
+  /** Счётчик нажатий — для реакции «тык» */
+  pokes: number;
   onboarding: { step: number; total: number; text: string } | null;
   nextStep: () => void;
   finishOnboarding: () => void;
   onClick: () => void;
+  setMode: (m: MascotMode) => void;
+  /** Состояние, которое держится, пока источник его не снимет (страница, очередь загрузок) */
+  setPageMood: (id: string, mood: Mood | null, text?: string, urgent?: boolean) => void;
+  /** Кратковременное состояние: «Радость» держится 4 с, затем возврат к прежнему */
+  react: (mood: Mood, ms?: number, text?: string) => void;
+  // Программный интерфейс модуля из ТЗ маскота §8.2
+  setState: (mood: Mood, data?: { text?: string; ttl?: number }) => void;
+  /** updateOnly — только обновить текст уже показанной реплики того же источника (процент загрузки) */
+  say: (text: string, opts?: { ttl?: number; urgent?: boolean; source?: string; updateOnly?: boolean }) => void;
+  poke: () => void;
+  hide: () => void;
+  show: () => void;
+  setEnabled: (on: boolean) => void;
 }
 
 const MascotContext = createContext<MascotApi | null>(null);
 
-/** Не больше одной подсказки за 5 минут (ТЗ §13.3) */
+/** Не чаще одной несрочной подсказки за 5 минут (ТЗ маскота §6) */
 const HINT_INTERVAL_MS = 5 * 60_000;
-/** «Спит» при долгом бездействии (ТЗ §13.2) */
-const IDLE_SLEEP_MS = 3 * 60_000;
+/** Бездействие 2+ минуты — «Спит» (ТЗ маскота §8.1) */
+const IDLE_SLEEP_MS = 2 * 60_000;
+/** Реплика исчезает через 5 секунд (ТЗ маскота §5) */
+const BUBBLE_MS = 5000;
 const TOUR: TKey[] = ['mascot.tour1', 'mascot.tour2', 'mascot.tour3', 'mascot.tour4'];
 
 const readNum = (k: string) => {
@@ -55,16 +80,23 @@ export function MascotProvider({ children }: { children: ReactNode }) {
 
   const [pageMoods, setPageMoods] = useState<{ id: string; mood: Mood }[]>([]);
   const [transient, setTransient] = useState<{ mood: Mood; until: number } | null>(null);
-  const [bubble, setBubble] = useState<string | null>(null);
+  const [bubble, setBubble] = useState<Bubble | null>(null);
   const [sleeping, setSleeping] = useState(false);
   const [tourStep, setTourStep] = useState<number | null>(null);
+  const [pokes, setPokes] = useState(0);
   const bubbleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const clickIdx = useRef(0);
 
-  const showBubble = useCallback((text: string, ms = 6000) => {
-    setBubble(text);
-    clearTimeout(bubbleTimer.current);
-    bubbleTimer.current = setTimeout(() => setBubble(null), ms);
+  const say = useCallback((text: string, opts: { ttl?: number; urgent?: boolean; source?: string; updateOnly?: boolean } = {}) => {
+    const urgent = !!opts.urgent;
+    setBubble((cur) => {
+      // Обновление текста той же реплики (например, процента загрузки) не продлевает её показ
+      if (opts.updateOnly) return cur && cur.source === opts.source && !cur.urgent ? (cur.text === text ? cur : { ...cur, text }) : cur;
+      if (cur && opts.source && cur.source === opts.source && !urgent && !cur.urgent) return { ...cur, text };
+      clearTimeout(bubbleTimer.current);
+      if (!urgent) bubbleTimer.current = setTimeout(() => setBubble(null), opts.ttl ?? BUBBLE_MS);
+      return { text, urgent, source: opts.source };
+    });
   }, []);
 
   const hint = useCallback(
@@ -72,28 +104,33 @@ export function MascotProvider({ children }: { children: ReactNode }) {
       const last = readNum('ain-mascot-hint-at');
       if (Date.now() - last < HINT_INTERVAL_MS) return;
       writeNum('ain-mascot-hint-at', Date.now());
-      showBubble(text);
+      say(text);
     },
-    [showBubble],
+    [say],
   );
 
   const setPageMood = useCallback(
-    (id: string, mood: Mood | null, hintKey?: TKey) => {
+    (id: string, mood: Mood | null, text?: string, urgent?: boolean) => {
       setPageMoods((cur) => {
         const rest = cur.filter((x) => x.id !== id);
         return mood ? [...rest, { id, mood }] : rest;
       });
-      if (mood && hintKey) hint(t(hintKey));
+      // Важная реплика уходит, когда её источник снял состояние
+      if (!mood || !urgent) setBubble((b) => (b?.urgent && b.source === id ? null : b));
+      if (mood && text) {
+        if (urgent) say(text, { urgent: true, source: id });
+        else hint(text);
+      }
     },
-    [hint, t],
+    [say, hint],
   );
 
   const react = useCallback(
     (mood: Mood, ms = 4000, text?: string) => {
       setTransient({ mood, until: Date.now() + ms });
-      if (text) showBubble(text, Math.max(ms, 4000));
+      if (text) say(text, { ttl: Math.max(ms, BUBBLE_MS) });
     },
-    [showBubble],
+    [say],
   );
 
   useEffect(() => {
@@ -102,7 +139,7 @@ export function MascotProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(id);
   }, [transient]);
 
-  // Долгое бездействие → «Спит»; любое действие будит
+  // Бездействие → «Спит»; любое действие будит
   useEffect(() => {
     let timer = setTimeout(() => setSleeping(true), IDLE_SLEEP_MS);
     const wake = () => {
@@ -118,7 +155,7 @@ export function MascotProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Онбординг при первом входе: Барыс на подставке машет лапой и ведёт по шагам тура
+  // Онбординг при первом входе: «Привет» и тур по шагам
   useEffect(() => {
     if (user && !user.onboardedAt && user.mascotMode === 'ON' && user.emailVerifiedAt) setTourStep((s) => s ?? 0);
   }, [user]);
@@ -143,39 +180,56 @@ export function MascotProvider({ children }: { children: ReactNode }) {
     (m: MascotMode) => {
       if (user) void updateUser({ mascotMode: m }).catch(() => undefined);
       else setAnonMode(m);
-      if (m === 'ON') react('wave', 3500, t('mascot.hello'));
+      // Возвращается с приветствием (ТЗ маскота §7, вариант 2)
+      if (m === 'ON') react('hello', 3200, t('mascot.hello'));
       if (m !== 'ON') setTourStep(null);
     },
     [user, updateUser, react, t],
   );
 
-  const onClick = useCallback(() => {
-    const phrases = list('mascot.click');
-    const text = phrases[clickIdx.current++ % Math.max(1, phrases.length)];
-    react('happy', 1600, text);
-  }, [list, react]);
+  const poke = useCallback(() => setPokes((n) => n + 1), []);
 
-  const onboarding = tourStep !== null ? { step: tourStep, total: TOUR.length, text: t(TOUR[tourStep]) } : null;
-  const mood: Mood = onboarding
-    ? 'wave'
-    : transient?.mood ?? (sleeping ? 'sleep' : pageMoods[pageMoods.length - 1]?.mood ?? 'idle');
+  const onClick = useCallback(() => {
+    poke();
+    // По нажатию — текущая реплика, если она есть, иначе короткая фраза
+    if (bubble) return;
+    const phrases = list('mascot.click');
+    say(phrases[clickIdx.current++ % Math.max(1, phrases.length)]);
+  }, [poke, bubble, list, say]);
+
+  const onboarding = useMemo(() => (tourStep !== null ? { step: tourStep, total: TOUR.length, text: t(TOUR[tourStep]) } : null), [tourStep, t]);
+
+  const mood: Mood = useMemo(() => {
+    const candidates: Mood[] = [...pageMoods.map((p) => p.mood)];
+    if (onboarding) candidates.push('hello');
+    if (transient) candidates.push(transient.mood);
+    if (!candidates.length) return sleeping ? 'sleep' : 'idle';
+    return candidates.reduce((a, b) => (rank(b) < rank(a) ? b : a));
+  }, [pageMoods, onboarding, transient, sleeping]);
 
   const value = useMemo<MascotApi>(
     () => ({
       mode,
-      setMode,
       mood,
-      pedestal: !!onboarding,
-      bubble: onboarding ? onboarding.text : bubble,
+      large: !!onboarding,
+      bubble: onboarding ? { text: onboarding.text, urgent: false } : bubble,
       dismissBubble: () => setBubble(null),
-      setPageMood,
-      react,
+      pokes,
       onboarding,
       nextStep,
       finishOnboarding,
       onClick,
+      setMode,
+      setPageMood,
+      react,
+      setState: (m, data) => react(m, data?.ttl ?? 4000, data?.text),
+      say,
+      poke,
+      hide: () => setMode('COLLAPSED'),
+      show: () => setMode('ON'),
+      setEnabled: (on) => setMode(on ? 'ON' : 'OFF'),
     }),
-    [mode, setMode, mood, onboarding, bubble, setPageMood, react, nextStep, finishOnboarding, onClick],
+    [mode, mood, onboarding, bubble, pokes, nextStep, finishOnboarding, onClick, setMode, setPageMood, react, say, poke],
   );
 
   return <MascotContext.Provider value={value}>{children}</MascotContext.Provider>;
@@ -192,14 +246,20 @@ export function useMascotOptional(): MascotApi | null {
   return useContext(MascotContext);
 }
 
-/** Страница задаёт состояние маскота на время показа (снимается при уходе со страницы) */
-export function useMascotMood(mood: Mood | null, hint?: TKey) {
+/**
+ * Страница задаёт состояние маскота на время показа (снимается при уходе со страницы).
+ * hint — несрочная подсказка (не чаще раза в 5 минут); urgent — важная реплика, висит, пока состояние не снято.
+ */
+export function useMascotMood(mood: Mood | null, hint?: TKey, opts: { vars?: Record<string, string | number>; urgent?: boolean } = {}) {
   const ctx = useContext(MascotContext);
-  const id = useRef(`m${Math.random().toString(36).slice(2)}`);
+  const { t } = useI18n();
+  const id = useId();
   const setPageMood = ctx?.setPageMood;
+  const text = hint ? t(hint, opts.vars) : undefined;
+  const urgent = !!opts.urgent;
   useEffect(() => {
     if (!setPageMood) return;
-    setPageMood(id.current, mood, hint);
-    return () => setPageMood(id.current, null);
-  }, [setPageMood, mood, hint]);
+    setPageMood(id, mood, text, urgent);
+    return () => setPageMood(id, null);
+  }, [setPageMood, id, mood, text, urgent]);
 }

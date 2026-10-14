@@ -41,7 +41,7 @@ test('UI: основной сценарий в браузере', { timeout: 15 
   const shot = (name) => page.screenshot({ path: join(OUT, `${name}.png`) });
 
   try {
-    await t.test('Лендинг: Барыс на подставке машет лапой', async () => {
+    await t.test('Лендинг: Облачко в состоянии «Привет» на первом экране', async () => {
       await page.goto(WEB);
       await page.getByRole('heading', { level: 1 }).waitFor();
       await page.waitForSelector('canvas', { timeout: 20_000 });
@@ -66,8 +66,8 @@ test('UI: основной сценарий в браузере', { timeout: 15 
       await page.waitForURL('**/drive');
     });
 
-    await t.test('Онбординг: тур Барыса и пустой диск', async () => {
-      await page.getByText('Привет! Я Барыс').waitFor({ timeout: 20_000 });
+    await t.test('Онбординг: тур Облачка и пустой диск', async () => {
+      await page.getByText('Сәлем! Я Облачко').waitFor({ timeout: 20_000 });
       await page.waitForTimeout(1500);
       await shot('03-onboarding');
       await page.getByRole('button', { name: 'Пропустить' }).click();

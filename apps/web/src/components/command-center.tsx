@@ -217,8 +217,8 @@ function Palette({ onClose, onHotkeys, onUpload }: { onClose: () => void; onHotk
         run: () => setLocale(l.code as Locale),
       })),
       mascot.mode === 'ON'
-        ? { id: 'mascot', group: 'actions', label: t('palette.mascotHide'), icon: <Minimize2 />, keywords: 'барыс barys маскот', run: () => mascot.setMode('COLLAPSED') }
-        : { id: 'mascot', group: 'actions', label: t('palette.mascotCall'), icon: <Sparkles />, keywords: 'барыс barys маскот', run: () => mascot.setMode('ON') },
+        ? { id: 'mascot', group: 'actions', label: t('palette.mascotHide'), icon: <Minimize2 />, keywords: 'облачко бұлт cloudy маскот mascot', run: () => mascot.setMode('COLLAPSED') }
+        : { id: 'mascot', group: 'actions', label: t('palette.mascotCall'), icon: <Sparkles />, keywords: 'облачко бұлт cloudy маскот mascot', run: () => mascot.setMode('ON') },
       { id: 'hotkeys', group: 'actions', label: t('palette.hotkeys'), icon: <Keyboard />, shortcut: ['?'], keywords: 'keys клавиши пернелер', run: onHotkeys },
     ];
     const term = q.trim().toLowerCase();

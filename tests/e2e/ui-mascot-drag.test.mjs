@@ -1,4 +1,4 @@
-// Барыса можно переставить мышью, пальцем или стрелками (кроме онбординга); место запоминается.
+// Облачко можно переставить мышью, пальцем или стрелками (кроме онбординга); место запоминается.
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
@@ -26,7 +26,7 @@ test('Маскот: свободное перемещение, кроме онб
   const { email, password } = await registerUser('mascot');
   const browser = await launch();
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  const mascot = page.getByRole('button', { name: /^Барыс/ });
+  const mascot = page.getByRole('button', { name: /^Облачко/ });
   /** Центр и нижний отступ контейнера маскота */
   const where = async () => {
     const b = await mascot.boundingBox();
@@ -49,11 +49,11 @@ test('Маскот: свободное перемещение, кроме онб
     await page.getByLabel('Пароль').fill(password);
     await page.getByRole('button', { name: 'Войти' }).click();
     await page.waitForURL('**/drive');
-    await page.getByText('Привет! Я Барыс').waitFor({ timeout: 30_000 });
+    await page.getByText('Сәлем! Я Облачко').waitFor({ timeout: 30_000 });
     await mascot.waitFor();
     await page.waitForTimeout(800);
 
-    await t.test('Во время онбординга Барыс стоит на подставке и не перетаскивается', async () => {
+    await t.test('Во время онбординга Облачко стоит на месте и не перетаскивается', async () => {
       const before = await where();
       await dragBy(-500, -300);
       const after = await where();
@@ -72,7 +72,7 @@ test('Маскот: свободное перемещение, кроме онб
     });
 
     await t.test('Отпускание после перетаскивания — не клик (реплика не появляется)', async () => {
-      assert.equal(await page.getByText('Я на страже ваших файлов.').count(), 0);
+      assert.equal(await page.getByText('Я берегу ваши оригиналы — байт в байт.').count(), 0);
     });
 
     await t.test('Место запоминается после перезагрузки', async () => {
@@ -84,7 +84,7 @@ test('Маскот: свободное перемещение, кроме онб
       assert.ok(Math.abs(again.cx - placed.cx) < 3 && Math.abs(again.bottom - placed.bottom) < 3, JSON.stringify({ placed, again }));
     });
 
-    await t.test('Стрелки клавиатуры переставляют Барыса', async () => {
+    await t.test('Стрелки клавиатуры переставляют Облачко', async () => {
       const before = await where();
       await mascot.focus();
       await page.keyboard.press('ArrowUp');
@@ -96,7 +96,7 @@ test('Маскот: свободное перемещение, кроме онб
 
     await t.test('«Вернуть на место» возвращает его к нижнему краю', async () => {
       await mascot.hover();
-      await page.getByRole('button', { name: 'Меню Барыса' }).click();
+      await page.getByRole('button', { name: 'Меню Облачка' }).click();
       await page.getByRole('menuitem', { name: 'Вернуть на место' }).click();
       await page.waitForTimeout(600);
       const back = await where();

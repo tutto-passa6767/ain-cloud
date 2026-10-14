@@ -4,13 +4,13 @@ import clsx from 'clsx';
 import { ArrowLeft, Copy, Download, FolderInput, MapPin, Pencil, Share2, Star, Trash2, ShieldAlert, ShieldX, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import useSWR from 'swr';
 import { useI18n } from '@/i18n';
 import { api, ApiError } from '@/lib/api';
 import { formatBytes, formatDate, formatDuration, formatTaken } from '@/lib/format';
 import type { AssetDetail, DriveListing } from '@/lib/types';
-import { useMascotMood } from '../mascot/mascot-context';
+import { useMascotMood, useMascotOptional } from '../mascot/mascot-context';
 import { useSession } from '../providers';
 import { useToast } from '../toast';
 import { Button, IconButton, Modal, ProgressBar, Spinner } from '../ui';
@@ -36,7 +36,18 @@ export function FileView({ id }: { id: string }) {
   }, [id]);
 
   const processingVideo = asset?.kind === 'VIDEO' && isBusy(asset);
-  useMascotMood(error ? 'confused' : processingVideo ? 'think' : null, processingVideo ? 'mascot.thinking' : undefined);
+  // Нет доступа — «Растерян» с репликой, пока открыта страница; обработка видео — «Думает» (ТЗ маскота §8.1)
+  const denied = error instanceof ApiError && (error.status === 404 || error.status === 403);
+  useMascotMood(error ? 'confused' : processingVideo ? 'think' : null, denied ? 'mascot.forbidden' : error ? 'mascot.confused' : processingVideo ? 'mascot.thinking' : undefined, {
+    urgent: !!error,
+  });
+  // Видео готово, пока страница открыта — «Радость»
+  const mascot = useMascotOptional();
+  const wasProcessing = useRef(false);
+  useEffect(() => {
+    if (wasProcessing.current && asset && !processingVideo && asset.processing === 'READY') mascot?.react('happy', 4000, t('mascot.videoReady', { name: asset.name }));
+    wasProcessing.current = processingVideo;
+  }, [processingVideo, asset, mascot, t]);
 
   // Соседние фото той же папки — для перехода и слайд-шоу
   const { data: siblings } = useSWR<DriveListing>(asset && (asset.kind === 'PHOTO' || asset.kind === 'RAW') ? `/drive?${new URLSearchParams({ ...(asset.folderId ? { folderId: asset.folderId } : {}), sort: 'name', order: 'asc' })}` : null);

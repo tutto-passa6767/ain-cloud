@@ -29,7 +29,7 @@ export default function TrashPage() {
   const { data, error, mutate } = useSWR<TrashData>('/trash');
   const [confirm, setConfirm] = useState<null | { kind: 'purge'; folderIds: string[]; assetIds: string[] } | { kind: 'empty' }>(null);
   const empty = data && !data.folders.length && !data.assets.length;
-  // Пустая корзина — Барыс спит (ТЗ §13.2)
+  // Пустая корзина — Облачко спит (ТЗ маскота §8.1)
   useMascotMood(error ? 'confused' : empty ? 'sleep' : null, empty ? 'mascot.sleep' : undefined);
 
   const restore = async (folderIds: string[], assetIds: string[]) => {

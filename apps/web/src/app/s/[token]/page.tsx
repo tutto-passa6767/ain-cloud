@@ -8,7 +8,7 @@ import useSWR from 'swr';
 import { KindIcon, QualityBadge } from '@/components/drive/bits';
 import { PhotoViewer } from '@/components/file/photo-viewer';
 import { VideoPlayer } from '@/components/file/video-player';
-import { BarysIcon } from '@/components/mascot/barys-icon';
+import { CloudIcon } from '@/components/mascot/cloud-icon';
 import { PublicPage } from '@/components/public';
 import { useToast } from '@/components/toast';
 import { Button, Input, Modal, Spinner, TruncatedName } from '@/components/ui';
@@ -58,7 +58,7 @@ function ShareInner() {
             : [t('publicLink.notFound'), t('publicLink.notFoundText')];
     return (
       <div className="flex flex-col items-center gap-3 py-24 text-center">
-        <BarysIcon size={96} mood="confused" />
+        <CloudIcon size={96} mood="confused" />
         <h1 className="text-xl font-semibold">{title}</h1>
         <p className="max-w-md text-sm text-muted">{text}</p>
       </div>

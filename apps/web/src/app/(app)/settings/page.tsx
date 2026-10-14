@@ -6,7 +6,7 @@ import { useState } from 'react';
 import useSWR from 'swr';
 import { LanguageSwitch } from '@/components/app-shell';
 import { useErrorText } from '@/components/drive/actions';
-import { BarysIcon } from '@/components/mascot/barys-icon';
+import { CloudIcon } from '@/components/mascot/cloud-icon';
 import { useMascot } from '@/components/mascot/mascot-context';
 import { useSession } from '@/components/providers';
 import { useToast } from '@/components/toast';
@@ -105,7 +105,7 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      {/* Переключатель «Барыс на сайте» хранится в аккаунте и действует на всех устройствах (ТЗ §13.4) */}
+      {/* Переключатель «Облачко на сайте» хранится в аккаунте и действует на всех устройствах (ТЗ маскота §7, вариант 1) */}
       <Section title={t('settings.mascot')} text={t('settings.mascotText')}>
         <div role="radiogroup" aria-label={t('settings.mascot')} className="grid gap-2 sm:grid-cols-3">
           {(
@@ -123,7 +123,7 @@ export default function SettingsPage() {
               onClick={() => mascot.setMode(mode)}
               className={clsx('flex items-center gap-3 rounded-xl border p-3 text-left text-sm transition-colors', mascot.mode === mode ? 'border-accent bg-accent-soft' : 'border-border hover:bg-surface-2')}
             >
-              <BarysIcon size={32} mood={mode === 'OFF' ? 'sleep' : mode === 'ON' ? 'happy' : 'idle'} className={mode === 'OFF' ? 'opacity-40' : undefined} />
+              <CloudIcon size={32} mood={mode === 'OFF' ? 'sleep' : mode === 'ON' ? 'happy' : 'idle'} className={mode === 'OFF' ? 'opacity-40' : undefined} />
               {label}
             </button>
           ))}

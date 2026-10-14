@@ -11,7 +11,7 @@ import { api, ApiError } from '@/lib/api';
 import type { AssetCard, DriveListing, Item } from '@/lib/types';
 import { filesFromDrop, filesFromInput, getUploadManager } from '@/lib/uploader/react';
 import { useMascot, useMascotMood, useMascotOptional } from '../mascot/mascot-context';
-import { BarysIcon } from '../mascot/barys-icon';
+import { CloudIcon } from '../mascot/cloud-icon';
 import { useToast } from '../toast';
 import { ShareDialog } from '../share-dialog';
 import { Button, IconButton, Menu, MenuItem, Modal, Spinner } from '../ui';
@@ -86,16 +86,16 @@ export function DriveView({ mode, folderId = null, searchKey, title, emptyText }
     empty && mode === 'folder' ? 'mascot.idle' : undefined,
   );
 
-  // Радость, когда обработка видео/фото завершилась
+  // «Радость», когда обработка видео/фото завершилась (событие video.ready, ТЗ маскота §8.1)
   const prevStates = useRef(new Map<string, string>());
   useEffect(() => {
-    let finished = false;
+    const finished: string[] = [];
     for (const a of assets) {
       const prev = prevStates.current.get(a.id);
-      if (prev && prev !== 'READY' && a.processing === 'READY') finished = true;
+      if (prev && prev !== 'READY' && a.processing === 'READY') finished.push(a.name);
       prevStates.current.set(a.id, a.processing);
     }
-    if (finished) react('happy', 3500, t('mascot.happy'));
+    if (finished.length) react('happy', 4000, finished.length === 1 ? t('mascot.videoReady', { name: finished[0] }) : t('mascot.happy'));
   }, [assets, react, t]);
 
   // ---------- выделение ----------
@@ -502,11 +502,11 @@ function Greeting() {
 }
 
 export function EmptyState({ mood, title, text, action }: { mood: 'idle' | 'confused' | 'sleep'; title: string; text: string; action?: ReactNode }) {
-  // Когда живой Барыс на экране, плоская картинка не дублирует его
+  // Когда живое Облачко на экране, плоская картинка не дублирует его
   const mascot = useMascotOptional();
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-      {mascot?.mode !== 'ON' && <BarysIcon size={88} mood={mood} />}
+      {mascot?.mode !== 'ON' && <CloudIcon size={88} mood={mood} />}
       <h2 className="text-lg font-semibold">{title}</h2>
       <p className="max-w-md text-sm text-muted">{text}</p>
       {action && <div className="mt-2">{action}</div>}

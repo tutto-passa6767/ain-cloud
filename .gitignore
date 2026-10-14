@@ -20,3 +20,7 @@ tests/e2e/.artifacts/
 .codebase-memory/
 .playwright-mcp/
 output/playwright/
+
+# Исходники маскота от заказчика: прототипы GLB и полная сетка тела (в приложение идёт упрощённая public/mascot/cloud-body.bin)
+mascot/cloud/*.glb
+mascot/cloud/cloud_body_data.js

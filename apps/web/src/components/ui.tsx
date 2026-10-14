@@ -24,9 +24,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
         ref={ref}
         disabled={disabled || loading}
         className={clsx(
-          'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap',
-          size === 'sm' ? 'h-8 px-3 text-sm' : 'h-10 px-4 text-sm',
-          variant === 'primary' && 'bg-accent text-accent-fg shadow-[0_10px_30px_-12px_var(--accent)] hover:bg-accent-strong hover:shadow-[0_12px_34px_-10px_var(--accent)]',
+          'inline-flex items-center justify-center gap-2 rounded-full font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap',
+          size === 'sm' ? 'h-8 px-3.5 text-sm' : 'h-10 px-5 text-sm',
+          variant === 'primary' && 'btn-primary',
           variant === 'secondary' && 'glass-2 text-fg hover:bg-surface-3',
           variant === 'ghost' && 'text-fg hover:bg-surface-2',
           variant === 'danger' && 'bg-danger-soft text-danger hover:bg-danger hover:text-white',
@@ -50,7 +50,7 @@ export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTM
         aria-label={label}
         title={label}
         className={clsx(
-          'inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40',
+          'inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40',
           active && 'bg-surface-2 text-fg',
           className,
         )}
@@ -79,7 +79,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
           aria-invalid={!!error || undefined}
           aria-describedby={hint || error ? `${inputId}-hint` : undefined}
           className={clsx(
-            'h-10 rounded-lg border bg-bg-elevated px-3 text-sm text-fg placeholder:text-subtle outline-none transition-colors focus:border-accent',
+            'h-11 rounded-xl border bg-bg-elevated px-3.5 text-sm text-fg placeholder:text-subtle outline-none transition-[border-color,box-shadow] focus:border-accent focus:shadow-[0_0_0_4px_var(--accent-soft)]',
             error ? 'border-danger' : 'border-border',
             className,
           )}
@@ -104,7 +104,7 @@ export function Badge({ tone = 'neutral', children, className, title }: { tone?:
     <span
       title={title}
       className={clsx(
-        'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-none',
+        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none',
         tone === 'neutral' && 'bg-surface-3 text-muted',
         tone === 'accent' && 'bg-accent-soft text-accent',
         tone === 'success' && 'bg-success-soft text-success',
@@ -249,7 +249,7 @@ export function ProgressBar({ value, tone = 'accent', className, label }: { valu
       <div
         className={clsx(
           'h-full rounded-full transition-[width] duration-300',
-          tone === 'accent' && 'bg-accent',
+          tone === 'accent' && 'bg-gradient-to-r from-accent-solid to-ember',
           tone === 'success' && 'bg-success',
           tone === 'warning' && 'bg-warning',
           tone === 'danger' && 'bg-danger',

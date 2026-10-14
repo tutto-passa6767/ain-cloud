@@ -9,10 +9,10 @@ import { useSWRConfig } from 'swr';
 import { LOCALES, useI18n } from '@/i18n';
 import { api } from '@/lib/api';
 import { formatBytes } from '@/lib/format';
-import { getUploadManager } from '@/lib/uploader/react';
+import { getUploadManager, useUploads } from '@/lib/uploader/react';
 import { MascotOverlay } from './mascot/mascot-overlay';
 import { MascotProvider, useMascot } from './mascot/mascot-context';
-import { BarysIcon } from './mascot/barys-icon';
+import { CloudIcon } from './mascot/cloud-icon';
 import { useSession } from './providers';
 import { useToast } from './toast';
 import { IconButton, Menu, MenuItem, ProgressBar, Spinner } from './ui';
@@ -99,7 +99,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
     <nav className="flex h-full flex-col gap-1 p-3" aria-label="Навигация">
       <div className="mb-3 flex items-center justify-between px-2 py-1">
         <Link href="/" className="flex items-center gap-2 font-semibold" title={t('nav.home')}>
-          <BarysIcon size={28} />
+          <CloudIcon size={28} />
           <span>AIN Cloud</span>
         </Link>
         {onClose && (
@@ -122,7 +122,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
             aria-current={active ? 'page' : undefined}
             className={clsx(
               'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-              active ? 'bg-accent-soft font-medium text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg',
+              active ? 'bg-gradient-to-r from-accent-soft to-transparent font-medium text-fg shadow-[inset_2px_0_0_var(--accent-solid)]' : 'text-muted hover:bg-surface-2 hover:text-fg',
             )}
           >
             <Icon className="size-4" />
@@ -144,12 +144,12 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
           </div>
         )}
         {me?.user && me.user.role !== 'USER' && (
-          <Link href="/admin" className={clsx('flex items-center gap-3 rounded-lg px-3 py-2 text-sm', pathname.startsWith('/admin') ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg')}>
+          <Link href="/admin" className={clsx('flex items-center gap-3 rounded-lg px-3 py-2 text-sm', pathname.startsWith('/admin') ? 'bg-gradient-to-r from-accent-soft to-transparent font-medium text-fg shadow-[inset_2px_0_0_var(--accent-solid)]' : 'text-muted hover:bg-surface-2 hover:text-fg')}>
             <Shield className="size-4" />
             {t('nav.admin')}
           </Link>
         )}
-        <Link href="/settings" className={clsx('flex items-center gap-3 rounded-lg px-3 py-2 text-sm', pathname === '/settings' ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg')}>
+        <Link href="/settings" className={clsx('flex items-center gap-3 rounded-lg px-3 py-2 text-sm', pathname === '/settings' ? 'bg-gradient-to-r from-accent-soft to-transparent font-medium text-fg shadow-[inset_2px_0_0_var(--accent-solid)]' : 'text-muted hover:bg-surface-2 hover:text-fg')}>
           <Settings className="size-4" />
           {t('nav.settings')}
         </Link>
@@ -165,7 +165,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
 export function LanguageSwitch({ compact }: { compact?: boolean }) {
   const { locale, setLocale, t } = useI18n();
   return (
-    <div role="group" aria-label={t('common.language')} className="flex rounded-lg border border-border p-0.5">
+    <div role="group" aria-label={t('common.language')} className="flex rounded-full border border-border p-0.5">
       {LOCALES.map((l) => (
         <button
           key={l.code}
@@ -174,7 +174,7 @@ export function LanguageSwitch({ compact }: { compact?: boolean }) {
           onClick={() => setLocale(l.code)}
           aria-pressed={locale === l.code}
           title={l.label}
-          className={clsx('rounded-md px-2 py-1 text-xs font-semibold transition-colors', locale === l.code ? 'bg-surface-3 text-fg' : 'text-muted hover:text-fg', compact && 'px-1.5')}
+          className={clsx('rounded-full px-2 py-1 text-xs font-semibold transition-colors', locale === l.code ? 'bg-surface-3 text-fg' : 'text-muted hover:text-fg', compact && 'px-1.5')}
         >
           {l.short}
         </button>
@@ -212,7 +212,7 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
         <Menu
           label={user?.name}
           trigger={({ toggle }) => (
-            <button type="button" onClick={toggle} className="flex size-9 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent" aria-label={user?.name}>
+            <button type="button" onClick={toggle} className="flex size-9 items-center justify-center rounded-full bg-[linear-gradient(160deg,#ff6a1a,#e61e32)] text-sm font-semibold text-white shadow-[0_6px_18px_-6px_rgba(230,30,50,0.8)]" aria-label={user?.name}>
               {(user?.name ?? '?').slice(0, 1).toUpperCase()}
             </button>
           )}
@@ -262,7 +262,7 @@ function PaletteButton() {
       onClick={() => commands?.openPalette()}
       title={t('palette.open')}
       aria-label={t('palette.open')}
-      className="hidden h-9 shrink-0 items-center gap-1 rounded-lg border border-border bg-surface-2 px-2 text-muted transition-colors hover:border-border-strong hover:text-fg md:flex"
+      className="hidden h-9 shrink-0 items-center gap-1 rounded-full border border-border bg-surface-2 px-2.5 text-muted transition-colors hover:border-border-strong hover:text-fg md:flex"
     >
       <kbd>{mod}</kbd>
       <kbd>K</kbd>
@@ -337,7 +337,7 @@ function SearchBox() {
           aria-label={t('common.search')}
           aria-autocomplete="list"
           aria-expanded={open && items.length > 0}
-          className="h-9 w-full rounded-lg glass-2 pl-9 pr-3 text-sm outline-none placeholder:text-subtle focus:border-accent"
+          className="h-9 w-full rounded-full glass-2 pl-9 pr-4 text-sm outline-none placeholder:text-subtle focus:border-accent"
         />
       </form>
       {open && items.length > 0 && (
@@ -362,6 +362,50 @@ function SearchBox() {
   );
 }
 
+const LIVE = ['queued', 'preparing', 'uploading', 'completing', 'offline'];
+
+/**
+ * Сценарий загрузки для Облачка (ТЗ маскота §8.1): Думает → (обрыв) Злой → (связь вернулась) Думает → Радость.
+ * Ошибки и переполнение квоты — «Злой», реплика держится, пока проблема не решена.
+ */
+function useUploadMascot() {
+  const items = useUploads();
+  const { setPageMood, say } = useMascot();
+  const { t } = useI18n();
+  const last = useRef({ key: '', offline: false, live: false, reply: 'uploading' as 'uploading' | 'resumed' });
+
+  useEffect(() => {
+    const live = items.filter((i) => LIVE.includes(i.status));
+    const offline = live.some((i) => i.status === 'offline');
+    const quota = items.find((i) => i.status === 'error' && i.error?.code === 'QUOTA_EXCEEDED');
+    const failed = items.find((i) => i.status === 'error' && i.error?.code !== 'QUOTA_EXCEEDED');
+    const total = live.reduce((a, i) => a + i.size, 0);
+    const percent = total ? Math.floor((live.reduce((a, i) => a + i.transferred, 0) / total) * 100) : 0;
+    const lead = live.find((i) => i.status === 'uploading') ?? live[0];
+
+    // Состояние меняем только при смене ситуации, а не на каждый процент
+    const [key, mood, text, urgent] = quota
+      ? ['quota', 'angry', t('mascot.quota'), true]
+      : offline
+        ? ['offline', 'angry', t('mascot.offline'), true]
+        : failed
+          ? [`failed:${failed.key}`, 'angry', t('mascot.uploadFailed', { name: failed.name }), true]
+          : live.length
+            ? ['think', 'think', undefined, false]
+            : ['', null, undefined, false];
+    if (key !== last.current.key) setPageMood('upload', mood as 'angry' | 'think' | null, text, urgent);
+
+    if (live.length && lead && !offline) {
+      if (last.current.offline) last.current.reply = 'resumed';
+      else if (!last.current.live) last.current.reply = 'uploading';
+      const reply = last.current.reply === 'resumed' ? t('mascot.resumed', { percent }) : t('mascot.uploading', { name: lead.name, percent });
+      const fresh = last.current.offline || !last.current.live;
+      say(reply, { source: 'upload-progress', updateOnly: !fresh });
+    }
+    last.current = { ...last.current, key, offline, live: live.length > 0 };
+  }, [items, setPageMood, say, t]);
+}
+
 /** Связь менеджера загрузок с интерфейсом: обновление каталога и квоты, реакция маскота, возобновление */
 function UploadBridge() {
   const { mutate } = useSWRConfig();
@@ -369,14 +413,19 @@ function UploadBridge() {
   const { react } = useMascot();
   const toast = useToast();
   const { t } = useI18n();
+  useUploadMascot();
 
   useEffect(() => {
     const m = getUploadManager();
-    const off = m.onCompleted(() => {
+    let batch: string[] = [];
+    const off = m.onCompleted((item) => {
+      batch.push(item.name);
       void mutate((key) => typeof key === 'string' && (key.startsWith('/drive') || key.startsWith('/uploads') || key.startsWith('/search')));
       void refresh();
       if (!m.busy) {
-        react('happy', 3000, t('upload.allDone'));
+        // «Радость» держится 4 секунды, затем «Ожидание» (ТЗ маскота §6)
+        react('happy', 4000, batch.length === 1 ? t('mascot.uploaded', { name: batch[0] }) : t('mascot.uploadedMany'));
+        batch = [];
         confetti();
         toast(t('upload.allDone'), 'success');
       }

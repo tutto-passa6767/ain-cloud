@@ -61,6 +61,8 @@ interface Run {
   retries: Map<number, number>;
   hashWorker?: Worker;
   hash?: Promise<string>;
+  /** Подсчёт SHA-256 сорвался (например, код воркера не догрузился при обрыве сети) — нужно начать заново */
+  hashFailed?: boolean;
   samples: { t: number; bytes: number }[];
   stopped: boolean;
   completing: boolean;
@@ -240,7 +242,9 @@ export class UploadManager {
   }
 
   private startHash(key: string, run: Run) {
-    if (run.hash) return;
+    if (run.hash && !run.hashFailed) return;
+    run.hashWorker?.terminate();
+    run.hashFailed = false;
     const worker = new Worker(new URL('./hash.worker.ts', import.meta.url), { type: 'module' });
     run.hashWorker = worker;
     run.hash = new Promise<string>((resolve, reject) => {
@@ -255,9 +259,14 @@ export class UploadManager {
           worker.terminate();
         }
       };
-      worker.onerror = (err) => reject(new Error(err.message));
+      worker.onerror = (err) => {
+        reject(new Error(err.message));
+        worker.terminate();
+      };
     });
-    run.hash.catch(() => undefined);
+    run.hash.catch(() => {
+      run.hashFailed = true;
+    });
     worker.postMessage({ file: run.file });
   }
 
@@ -391,7 +400,7 @@ export class UploadManager {
     run.completing = true;
     this.patch(key, { status: 'completing', speed: 0, eta: 0 });
     try {
-      const sha256 = await run.hash!;
+      const sha256 = await this.ensureHash(key, run);
       for (let attempt = 0; ; attempt++) {
         try {
           const r = await api<{ assetId: string }>(`/uploads/${run.session!.id}/complete`, { method: 'POST', body: { sha256 } });
@@ -422,6 +431,21 @@ export class UploadManager {
     } catch (e) {
       run.completing = false;
       this.fail(key, e);
+    }
+  }
+
+  /** Контрольная сумма файла; если подсчёт сорвался из-за сети — дожидаемся связи и считаем заново */
+  private async ensureHash(key: string, run: Run): Promise<string> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await run.hash!;
+      } catch (e) {
+        if (attempt >= 3) throw e;
+        if (!navigator.onLine) await new Promise((r) => window.addEventListener('online', r, { once: true }));
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        run.hashFailed = true;
+        this.startHash(key, run);
+      }
     }
   }
 

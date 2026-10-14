@@ -80,7 +80,7 @@ export default function ResetPage() {
       {step === 'done' && (
         <div className="flex flex-col gap-4">
           <p className="text-sm">{t('auth.resetDone')}</p>
-          <Link href="/login" className="rounded-lg bg-accent px-4 py-2.5 text-center text-sm font-medium text-accent-fg">
+          <Link href="/login" className="btn-primary rounded-full px-4 py-2.5 text-center text-sm font-medium">
             {t('nav.login')}
           </Link>
         </div>

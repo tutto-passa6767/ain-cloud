@@ -157,7 +157,7 @@ function SelectBox({ selected, onToggle, label }: { selected: boolean; onToggle:
       }}
       className={clsx(
         'flex size-6 items-center justify-center rounded-md border backdrop-blur transition-all',
-        selected ? 'border-accent bg-accent text-accent-fg' : 'border-border-strong bg-bg/50 text-transparent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+        selected ? 'border-accent-solid bg-accent-solid text-accent-fg' : 'border-border-strong bg-bg/50 text-transparent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
       )}
     >
       <Check className="size-3.5" />

@@ -27,7 +27,7 @@ export function LegalPage({ kind }: { kind: 'terms' | 'privacy' | 'offer' }) {
   return (
     <PublicPage>
       <article className="mx-auto max-w-3xl px-4 py-14">
-        <h1 className="text-3xl font-semibold">{titles[kind]}</h1>
+        <h1 className="display text-4xl sm:text-5xl">{titles[kind]}</h1>
         <p className="mt-4 rounded-xl border border-warning/40 bg-warning-soft p-4 text-sm text-warning">{t('legal.draft')}</p>
         <ul className="mt-6 list-disc space-y-3 pl-5 text-muted">
           {points[kind].map((p) => (

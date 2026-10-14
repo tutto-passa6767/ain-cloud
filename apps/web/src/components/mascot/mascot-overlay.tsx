@@ -2,24 +2,22 @@
 
 import clsx from 'clsx';
 import { Ellipsis, EyeOff, Minimize2, Undo2 } from 'lucide-react';
-import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/i18n';
 import { Menu, MenuItem } from '../ui';
-import { BarysIcon } from './barys-icon';
+import { CloudIcon } from './cloud-icon';
 import { useMascot } from './mascot-context';
-import { webglAvailable } from './barys-scene';
+import { webglAvailable } from './cloud-scene';
+import { useCloudCanvas } from './use-cloud-canvas';
+import { useReducedMotion } from './mascot-stage';
 
-// Three.js и модель грузятся отдельным чанком только когда маскот включён
-const BarysCanvas = dynamic(() => import('./barys-canvas'), { ssr: false });
-
-const STANDING = new Set(['think', 'confused', 'happy']);
-const WALKING = new Set(['think', 'confused']);
-const SPEED = 70; // px/с
+// В «Ожидании», «Думает» и «Растерян» облачко медленно проплывает вдоль нижнего края (ТЗ маскота §6)
+const FLOATING = new Set(['idle', 'think', 'confused']);
+const SPEED = 55; // px/с
 const DRAG_THRESHOLD = 5; // px — меньше считается кликом
 const POS_KEY = 'ain-mascot-pos';
 
-/** Место, куда пользователь переставил Барыса: доли ширины и высоты окна, чтобы переживать смену размера */
+/** Место, куда пользователь переставил Облачко: доли ширины и высоты окна, чтобы переживать смену размера */
 type UserPos = { fx: number; fy: number };
 
 const loadPos = (): UserPos | null => {
@@ -39,19 +37,7 @@ const savePos = (p: UserPos | null) => {
   }
 };
 
-function useReducedMotion() {
-  const [v, setV] = useState(false);
-  useEffect(() => {
-    const m = window.matchMedia('(prefers-reduced-motion: reduce)');
-    setV(m.matches);
-    const on = () => setV(m.matches);
-    m.addEventListener('change', on);
-    return () => m.removeEventListener('change', on);
-  }, []);
-  return v;
-}
-
-/** Автоскрытие (ТЗ §13.4, вариант 4): полноэкранный просмотр, открытая клавиатура на телефоне, модальные окна */
+/** Автоскрытие (ТЗ маскота §7, вариант 4): полноэкранный просмотр, открытая клавиатура на телефоне, модальные окна */
 function useAutoHidden() {
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
@@ -116,9 +102,12 @@ export function MascotOverlay() {
   const drag = useRef<{ id: number; sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
 
-  const size = mobile ? { w: 120, h: 140 } : { w: 190, h: 220 };
+  // Тело облачка — около 120–160 px на десктопе и 80–100 px на телефоне; в онбординге — крупнее (ТЗ маскота §6)
+  // Three.js и модель грузятся отдельным чанком только когда маскот включён
+  const { Canvas: CloudCanvas, failed: canvasFailed } = useCloudCanvas(m.mode === 'ON' && webgl === true);
+  const size = m.large ? (mobile ? { w: 200, h: 155 } : { w: 300, h: 232 }) : mobile ? { w: 130, h: 100 } : { w: 200, h: 155 };
   const half = size.w / 2;
-  // Во время онбординга Барыс стоит на подставке на своём месте — переставлять нельзя
+  // Во время онбординга Облачко стоит на своём месте — переставлять нельзя
   const movable = !m.onboarding;
 
   useEffect(() => {
@@ -127,7 +116,7 @@ export function MascotOverlay() {
     setUserPos(p);
   }, []);
 
-  // Модель загружается после основного содержимого страницы — на LCP не влияет (ТЗ §13.5)
+  // Модель загружается после основного содержимого страницы — на LCP не влияет (ТЗ маскота §9)
   useEffect(() => {
     const go = () => setWebgl(webglAvailable());
     if (document.readyState === 'complete') {
@@ -156,7 +145,7 @@ export function MascotOverlay() {
       const box = boxRef.current;
       if (!box) return;
       box.style.transform = `translate(${x - half}px, ${-y}px)`;
-      // Реплика не выходит за край экрана; у верхнего края — показывается под Барысом
+      // Реплика не выходит за край экрана; у верхнего края — показывается под Облачком
       const bw = 136;
       const shift = Math.max(bw + 8 - x, Math.min(0, window.innerWidth - bw - 8 - x));
       box.style.setProperty('--bubble-shift', `${shift}px`);
@@ -180,7 +169,7 @@ export function MascotOverlay() {
       last = now;
       if (drag.current?.moved) return;
 
-      // Пользователь поставил Барыса сам — он остаётся на этом месте (кроме онбординга)
+      // Пользователь поставил Облачко сам — оно остаётся на этом месте (кроме онбординга)
       const up = userPosRef.current;
       if (up && movable) {
         setBlocked(false);
@@ -191,7 +180,7 @@ export function MascotOverlay() {
         return;
       }
 
-      // Иначе — ходьба вдоль нижнего края в стоячих состояниях, рабочие зоны обходятся (ТЗ §13.3)
+      // Иначе — полёт вдоль нижнего края, рабочие зоны обходятся (ТЗ маскота §6)
       if (now - spansAt > 330) {
         spans = freeSpans(window.innerHeight - size.h, half);
         spansAt = now;
@@ -208,9 +197,9 @@ export function MascotOverlay() {
         return best;
       };
       let cur = xRef.current ?? nearest(window.innerWidth - half - 24);
-      const canWalk = WALKING.has(m.mood) && !reduced && !mobile && !m.onboarding;
+      const canWalk = FLOATING.has(m.mood) && !reduced && !mobile && !m.onboarding;
       if (canWalk && now > pickAt && (target.current === null || Math.abs(target.current - cur) < 2)) {
-        // Прошёлся — остановился и смотрит на пользователя, потом выбирает новую точку
+        // Проплыло — зависает и смотрит на пользователя, потом выбирает новую точку
         const span = spans[Math.floor(Math.random() * spans.length)];
         target.current = span[0] + Math.random() * (span[1] - span[0]);
         pickAt = now + 2500 + Math.random() * 3500;
@@ -220,7 +209,7 @@ export function MascotOverlay() {
 
       let newDir: -1 | 0 | 1 = 0;
       if (target.current !== null && Math.abs(target.current - cur) > 2) {
-        // Без ходьбы (сидячие позы, «уменьшение движения») — сразу на свободное место
+        // Без полёта (остальные состояния, «уменьшение движения») — сразу на свободное место
         const step = canWalk ? SPEED * dt : Infinity;
         newDir = target.current > cur ? 1 : -1;
         cur = Math.abs(target.current - cur) <= step ? target.current : cur + newDir * step;
@@ -286,7 +275,7 @@ export function MascotOverlay() {
     }
   };
 
-  /** С клавиатуры: стрелки переставляют Барыса (Shift — шагом крупнее) */
+  /** С клавиатуры: стрелки переставляют Облачко (Shift — шагом крупнее) */
   const onKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (!movable) return;
     const step = e.shiftKey ? 64 : 16;
@@ -310,16 +299,17 @@ export function MascotOverlay() {
         className="fixed bottom-4 left-4 z-30 flex items-center gap-2 rounded-full glass py-1.5 pl-1.5 pr-3.5 text-sm shadow-pop transition-colors hover:bg-surface-2 lg:left-[17rem]"
         title={t('mascot.call')}
       >
-        <BarysIcon size={30} />
+        <CloudIcon size={30} />
         <span className="hidden sm:inline">{t('mascot.call')}</span>
       </button>
     );
   }
 
-  // Переставленного пользователем Барыса рабочие зоны не прячут — он там, где его оставили
+  // Переставленное пользователем Облачко рабочие зоны не прячут — оно там, где его оставили
   const hidden = autoHidden || (blocked && !(userPos && movable)) || !placed;
-  // Пока Барыса несут — он поднимает лапы
+  // Пока Облачко несут — оно радуется
   const pose = dragging ? 'happy' : m.mood;
+  const bubble = m.bubble;
 
   return (
     <div
@@ -327,14 +317,22 @@ export function MascotOverlay() {
       className={clsx('pointer-events-none fixed bottom-0 left-0 z-30 transition-opacity duration-300', hidden ? 'invisible opacity-0' : 'opacity-100')}
       style={{ width: size.w }}
       aria-hidden={hidden}
+      data-mascot-mood={pose}
     >
-      {m.bubble && !hidden && !dragging && (
+      {bubble && !hidden && !dragging && (
         <div
-          className={clsx('animate-pop pointer-events-auto absolute w-64 rounded-2xl glass-strong px-4 py-3 text-sm', bubbleBelow ? 'top-full mt-1' : 'bottom-full mb-1')}
+          className={clsx(
+            'animate-pop pointer-events-auto absolute w-64 rounded-2xl glass-strong px-4 py-3 text-sm',
+            bubbleBelow ? 'top-full mt-1' : 'bottom-full mb-1',
+            bubble.urgent && 'border-warning/50',
+          )}
           style={{ left: '50%', transform: 'translateX(calc(-50% + var(--bubble-shift, 0px)))' }}
-          role="status"
+          // Реплики — вежливо, ошибки — сразу (ТЗ маскота §10); исчезают по клику
+          role={bubble.urgent ? 'alert' : 'status'}
+          aria-live={bubble.urgent ? 'assertive' : 'polite'}
+          onClick={() => !m.onboarding && m.dismissBubble()}
         >
-          <p>{m.bubble}</p>
+          <p>{bubble.text}</p>
           {m.onboarding && (
             <div className="mt-3 flex items-center justify-between gap-2">
               <span className="text-xs text-muted">
@@ -344,7 +342,7 @@ export function MascotOverlay() {
                 <button type="button" className="rounded-lg px-2 py-1 text-xs text-muted hover:bg-surface-2" onClick={m.finishOnboarding}>
                   {t('common.skip')}
                 </button>
-                <button type="button" className="rounded-lg bg-accent px-2.5 py-1 text-xs font-medium text-accent-fg" onClick={m.nextStep}>
+                <button type="button" className="btn-primary rounded-full px-3 py-1 text-xs font-medium" onClick={m.nextStep}>
                   {m.onboarding.step + 1 === m.onboarding.total ? t('common.done') : t('common.next')}
                 </button>
               </div>
@@ -365,17 +363,17 @@ export function MascotOverlay() {
           onPointerCancel={endDrag}
           onKeyDown={onKeyDown}
         />
-        {webgl ? (
+        {webgl && CloudCanvas ? (
           <div className={clsx('pointer-events-none transition-transform duration-150', dragging && 'scale-105')}>
-            <BarysCanvas pose={pose} pedestal={m.pedestal} walking={dir} reducedMotion={reduced} width={size.w} height={size.h} onReady={() => setReady(true)} onFail={() => setWebgl(false)} />
+            <CloudCanvas pose={pose} drift={dir} pokes={m.pokes} reducedMotion={reduced} width={size.w} height={size.h} onReady={() => setReady(true)} onFail={() => setWebgl(false)} />
           </div>
-        ) : webgl !== null ? (
-          // Без WebGL — заранее нарисованная 2D-поза
-          <div className="pointer-events-none flex h-full items-end justify-center pb-3">
-            <BarysIcon size={mobile ? 72 : 104} mood={pose} />
+        ) : webgl === false || canvasFailed ? (
+          // Без WebGL — плоское Облачко в том же состоянии (ТЗ маскота §9, резервный режим)
+          <div className="pointer-events-none flex h-full items-end justify-center pb-2">
+            <CloudIcon size={Math.round(size.w * 0.6)} mood={pose} className={reduced ? undefined : 'mascot-float'} />
           </div>
         ) : null}
-        {(ready || webgl === false || reduced) && !dragging && (
+        {(ready || webgl === false || canvasFailed || reduced) && !dragging && (
           <div className="absolute right-1 top-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
             <Menu
               label={t('mascot.menu')}
@@ -404,8 +402,6 @@ export function MascotOverlay() {
           </div>
         )}
       </div>
-      {/* стоячие позы — без лишних отступов, сидячие — чуть выше края */}
-      <div className={clsx(STANDING.has(pose) ? 'h-0' : 'h-1')} />
     </div>
   );
 }

@@ -276,7 +276,7 @@ export function VideoPlayer({ asset, planMaxHeight, src: srcProp, globalHotkeys 
         >
           <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/25">
             <div className="absolute inset-y-0 left-0 rounded-full bg-white/35" style={{ width: `${duration ? (buffered / duration) * 100 : 0}%` }} />
-            <div className="absolute inset-y-0 left-0 rounded-full bg-accent" style={{ width: `${pct}%` }} />
+            <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-accent-solid to-ember" style={{ width: `${pct}%` }} />
           </div>
           <input
             type="range"

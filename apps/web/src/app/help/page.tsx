@@ -15,7 +15,7 @@ export default function HelpPage() {
   return (
     <PublicPage>
       <section className="mx-auto max-w-3xl px-4 py-14">
-        <h1 className="text-3xl font-semibold">{t('help.title')}</h1>
+        <h1 className="display text-4xl sm:text-5xl">{t('help.title')}</h1>
         <div className="mt-6 divide-y divide-border rounded-2xl glass">
           {faq.map(([q, a]) => (
             <details key={q} className="p-5">

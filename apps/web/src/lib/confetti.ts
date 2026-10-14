@@ -1,6 +1,6 @@
 // Небольшой праздничный залп, когда все загрузки завершены. Без библиотек; при «уменьшении движения» не показывается.
 
-const COLORS = ['#7cc4ff', '#2ef2a3', '#ffffff', '#b9a8ff', '#4ea9f5'];
+const COLORS = ['#e61e32', '#ff5a1f', '#ffffff', '#b3b3b3', '#ff4d5e'];
 
 export function confetti(origin: { x: number; y: number } = { x: window.innerWidth - 220, y: window.innerHeight - 120 }) {
   if (typeof window === 'undefined' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
